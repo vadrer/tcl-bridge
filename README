@@ -1,7 +1,7 @@
 =head1 tcl-bridge
 
 tcl-bridge makes available tcl/tk for Parrot in a form of ordinary
-usage of corresponding share dlibrary (libtcl.so, or tcl85.dll, etc)
+usage of corresponding share dlibrary (libtcl8.5.so, or tcl85.dll, etc)
 Tcl/Tk binaries should be installed on the system, and this will provide
 parrot with a Tk GUI.
 
