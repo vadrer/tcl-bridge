@@ -22,12 +22,6 @@ No Configure step, no Makefile generated.
     $S0 = shift args
     load_bytecode 'distutils.pbc'
 
-    .const 'Sub' build = 'build'
-    register_step_before('build', build)
-
-    .const 'Sub' clean = 'clean'
-    register_step_before('clean', clean)
-
     $P0 = new 'Hash'
     $P0['name'] = 'tcl-bridge'
     $P0['abstract'] = 'Tcl/Tk binding for Parrot'
@@ -61,16 +55,6 @@ LIBS
     $P0['inst_lang'] = $P3
 
     .tailcall setup(args :flat, $P0 :flat :named)
-.end
-
-.sub 'build' :anon
-    .param pmc kv :slurpy :named
-    say "sub build"
-.end
-
-.sub 'clean' :anon
-    .param pmc kv :slurpy :named
-    unlink('src/TclLibrary.pbc')
 .end
 
 # Local Variables:
