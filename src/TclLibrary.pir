@@ -31,7 +31,7 @@ This module implements Tcl/Tk interface for Parrot.
 .const int TCL_LIST_ELEMENT    = 8
 
 # DEBUG
-.const int debug_objresult = 1
+.const int debug_objresult = 0
 
 =head2 TclLibrary interpreter Methods
 
@@ -312,7 +312,6 @@ This is a (static) function that will convert Tcl object to pmc
 .sub _pmc_from_tclobj
     .param pmc interp
     .param pmc tclobj
-    .param pmc tclobj1
 
     # check what type this tcl obj is
 
