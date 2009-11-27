@@ -16,14 +16,7 @@ t/tcl_lib.t - test parrot to external Tcl connection
 .const int TESTS = 8
 
 .sub 'main' :main
-    load_bytecode 'Test/More.pbc'
-
-    .local pmc exports, curr_namespace, test_namespace
-    curr_namespace = get_namespace
-    test_namespace = get_namespace [ 'Test'; 'More' ]
-    exports        = split ' ', 'plan diag ok nok is is_deeply like isa_ok skip isnt todo'
-
-    test_namespace.'export_to'(curr_namespace, exports)
+    .include 'test_more.pir'
 
     plan(TESTS)
 
@@ -66,7 +59,7 @@ t/tcl_lib.t - test parrot to external Tcl connection
     'is'(res,"ok", "setvar ok")
     res = tcl.'eval_str'("return $foo(bar)")
     'is'(res,"ok", "setvar ok")
-  
+
     # list
     .local pmc tlist
     tlist = tcl.'eval'("return [list a b foo bar]")
