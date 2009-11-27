@@ -26,6 +26,7 @@ pack [button .b -text {useful button} -command {puts this}]
 pack [text .t]
 .t insert end {foo, bar, fluffy}
 pack [button .bquit -text {quit} -command {exit}]
+focus .b
 EOS
     res = tcl.'eval'("expr {3+3}")
     print "res="

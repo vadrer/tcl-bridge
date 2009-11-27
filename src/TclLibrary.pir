@@ -146,7 +146,7 @@ libtcl_loaded:
 .end
 
 
-=ignore
+=for comment
 
 Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
 
@@ -158,7 +158,7 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
     addattribute tclclass, 'interp'
 .end
 
-=ignore
+=for comment
 
  - creates a helper for Tcl_Obj struct
 
@@ -409,10 +409,10 @@ m03:
 
     .local pmc argh
     argh = new 'Hash'
-    set argh['list'], tclobj
+    set argh['tclobj'], tclobj
+    set argh['interp'], interp
     .local pmc tlist
     tlist = new ['TclLibrary';'List'], argh
-    goto EOJ
     .return(tlist)
 
 m04:
@@ -708,6 +708,31 @@ elsewhere - reuse it from there)
     die message
 .end
 
+.namespace ['TclLibrary';'Obj']
+
+=item _init
+
+base TclObj class for support of Tcl/Tk library
+
+=cut
+
+.sub _init :load :init
+    .local pmc tclclass
+    tclclass = newclass ['TclLibrary';'Obj']
+    addattribute tclclass, 'tclobj'
+    addattribute tclclass, 'interp'
+.end
+
+.sub get_string :method :vtable
+    .local string str
+    .local pmc f_getstr
+    .local pmc tclobj
+    tclobj = getattribute self, 'tclobj'
+    f_getstr = get_hll_global ['TclLibrary'], '_tcl_getstringfromobj'
+    str = f_getstr(tclobj, 0)
+    .return(str)
+.end
+
 .namespace ['TclLibrary';'List']
 
 =item _init
@@ -719,34 +744,54 @@ Based on Tcl list object, i.e. TclObj of type tclListType
 
 .sub _init :load :init
     .local pmc tclclass
-    tclclass = newclass ['TclLibrary';'List']
-    addattribute tclclass, 'list'
+    tclclass = subclass ['TclLibrary';'Obj'],['TclLibrary';'List']
 .end
 
 .sub init :method :vtable
-    .param pmc argh
-
-    say "instantiating..."
-    #.local pmc tclobj
-    #tclobj = getattribute self, 'list'
-    say "yes, ['TclLibrary';'List'] obj created"
+    die "only allowed to instantiate with tcl object of type tclListTypePtr"
 .end
+
+.sub init_pmc :method :vtable
+    .param pmc argh
+    .local pmc tclobj, interp
+    tclobj = argh['tclobj']
+    interp = argh['interp']
+    setattribute self, 'tclobj', tclobj
+    setattribute self, 'interp', interp
+.end
+
+=for comment
+
+length method calculates number of elements in tcl list by calling tcl API
+
+=cut
 
 .sub length :method
     .local int res
-    # TBD
-    .return(res)
+    .local pmc objc
+    .local pmc func
+    .local pmc tcllistobj, interp
+    func = get_hll_global ['TclLibrary'], '_tcl_listobjlength'
+    tcllistobj = getattribute self, 'tclobj'
+    interp = getattribute self, 'interp'
+    objc = new 'Integer' # TODO when should we free this? it GCed, but when?
+    res = func(interp, tcllistobj, objc)
+    .return(objc)
 .end
 
-.sub get_string :method
-    .local string res
-    # TBD
-    .return(res)
-.end
+=for comment
 
-=comment
+helper sub to create an array of PMCs out of tclListType
 
-efficient way to extract all elements at once:
+There could be 2 approaches - all via tcl strings, or via C API.
+We try to do an efficient way to extract all elements at once.
+
+=cut
+
+.sub _tclobj_to_pmcarray
+    .param pmc interp
+    .param pmc tclobj
+
     .local pmc objc, objv # pointer which will hold array of tcl_obj's
     .local pmc objc_ptr, objv_ptr
 
@@ -760,7 +805,10 @@ efficient way to extract all elements at once:
     # if (objc) { .... }
 
     .local pmc f_listobjgetelements
-    f_listobjgetelements = get_global '_tcl_listobjgetelements'
+    .local int rc
+    say "123"
+    f_listobjgetelements = get_hll_global ['TclLibrary'], '_tcl_listobjgetelements'
+    say "456"
     rc = f_listobjgetelements(interp, tclobj, objc, objv_ptr)
     # we have objc TclObj in objv_ptr
     print "objc="
@@ -768,9 +816,9 @@ efficient way to extract all elements at once:
     print "rc="
     say rc
 
-    TBD
+    #TBD
+.end
 
-=cut
 
 =back
 
