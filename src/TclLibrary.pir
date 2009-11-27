@@ -62,7 +62,7 @@ This module implements Tcl/Tk interface for Parrot.
     rc = f_evalex(interp,str,-1,0) # interp, string, length or -1, flags
     # check if the result is TCL_OK(=0)
     if rc==TCL_OK goto eval_ok
-    sres = f_getstringresult(interp,0)
+    sres = f_getstringresult(interp)
     error = "error during Tcl_EvalEx: " . sres
     die error
 
@@ -70,13 +70,14 @@ eval_ok:
     # get the result (list result, etc - TBD)
     .IfElse(debug_objresult==0,{
 	.local pmc obj
-	obj = f_getobjresult(interp,0)
+	obj = f_getobjresult(interp)
         .local pmc tcl_obj_decl
         tcl_obj_decl = get_global '_tcl_obj_decl' # retrieve tcl_obj structure
         assign obj, tcl_obj_decl                  # ... and use it
 	res = _pmc_from_tclobj(interp,obj)
     },{
-	sres = f_getstringresult(interp,0)
+	sres = f_getstringresult(interp)
+        .return(sres)
     })
     .return(res)
 .end
@@ -100,12 +101,12 @@ eval_ok:
     rc = f_eval(interp,str)
     # check if the result is TCL_OK(=0)
     if rc==TCL_OK goto eval_ok
-    res = f_getstringresult(interp,0)
+    res = f_getstringresult(interp)
     error = "error during Tcl_Eval: " . res
     die error
 
 eval_ok:
-    res = f_getstringresult(interp,0)
+    res = f_getstringresult(interp)
     .return(res)
 .end
 
@@ -157,7 +158,7 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
     addattribute tclclass, 'interp'
 .end
 
-=comment
+=ignore
 
  - creates a helper for Tcl_Obj struct
 

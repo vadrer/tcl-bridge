@@ -1,20 +1,19 @@
 #!./parrot
 # Copyright (C) 2009, Parrot Foundation.
-# $Id: tcl_lib.t 38695 2009-05-11 19:42:10Z NotFound $
 
 =head1 NAME
 
-t/library/tcl_lib.t - test parrot to external Tcl connection
+t/tcl_lib.t - test parrot to external Tcl connection
 
 =head1 SYNOPSIS
 
-    % prove t/library/tcl_lib.t
+    % prove t/tcl_lib.t
 
 =head1 DESCRIPTION
 
 =cut
 
-.const int TESTS = 1
+.const int TESTS = 8
 
 .sub 'main' :main
     load_bytecode 'Test/More.pbc'
@@ -28,10 +27,8 @@ t/library/tcl_lib.t - test parrot to external Tcl connection
 
     plan(TESTS)
 
-    load_bytecode 'TclLibrary.pbc' # TBD pbc
+    load_bytecode 'TclLibrary.pbc'
     'ok'(1, 'loaded TclLibrary')
-
-    goto skip_all    # this is TEMPORARY untill the hang with tcl84.dll/cygwin is fixed
 
     .local pmc tcl
     tcl = new 'TclLibrary'
@@ -70,17 +67,16 @@ t/library/tcl_lib.t - test parrot to external Tcl connection
     res = tcl.'eval_str'("return $foo(bar)")
     'is'(res,"ok", "setvar ok")
   
-skip2:
     # list
     .local pmc tlist
     tlist = tcl.'eval'("return [list a b foo bar]")
     ires = tlist.'length'()
     ok(ires,4,"list length")
 
+skip2:
+
     # MORE TBD
 
-
-skip_all:
 
 .end
 # Local Variables:

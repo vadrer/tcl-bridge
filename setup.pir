@@ -49,6 +49,8 @@ No Configure step, no Makefile generated.
 
     # test
     $S0 = get_parrot()
+    $S1 = " -L src"
+    $S0 .= $S1
     $P0['prove_exec'] = $S0
 
     # install
@@ -58,9 +60,7 @@ LIBS
     $S0 = pop $P3
     $P0['inst_lang'] = $P3
 
-    say "h1"
     .tailcall setup(args :flat, $P0 :flat :named)
-    say "h2"
 .end
 
 .sub 'build' :anon
