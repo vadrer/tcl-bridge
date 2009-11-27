@@ -13,7 +13,7 @@ t/tcl_lib.t - test parrot to external Tcl connection
 
 =cut
 
-.const int TESTS = 9
+.const int TESTS = 14
 
 .sub 'main' :main
     .include 'test_more.pir'
@@ -35,7 +35,6 @@ t/tcl_lib.t - test parrot to external Tcl connection
     'is'(res, '3+3', 'return of a string')
     res = tcl.'eval'("string repeat {qwerty} 2")
     'is'(res, 'qwertyqwerty', 'test string')
-    # TODO res = tcl.'eval'("return [list a b foo bar]")
     ires = tcl.'eval'("expr {3+3}")
     'is'(ires, 6, 'return of an integer')
     res = tcl.'eval'("return [expr 1.0]")
@@ -48,6 +47,13 @@ t/tcl_lib.t - test parrot to external Tcl connection
     res = tcl.'eval_str'("return $foo")
     'is'(res,"ok", "setvar ok")
 
+    # unset
+    res = tcl.'eval_str'("info exists foo")
+    'is'(res,"1", "unsetvar ok")
+    tcl.'unsetvar'('foo')
+    res = tcl.'eval_str'("info exists foo")
+    'is'(res,"0", "unsetvar ok")
+
     # setvar2, etc
     tcl.'eval_str'('set a(OK) ok; set a(five) 5')
     res = tcl.'getvar2'('a','OK')
@@ -55,10 +61,9 @@ t/tcl_lib.t - test parrot to external Tcl connection
     tcl.'setvar2'("foo", "bar", "ok")
     res = tcl.'getvar2'('foo','bar')
     'is'(res,'ok','setvar2 ok')
-    res = tcl.'eval_str'("set bar(foo)")
-    'is'(res,"ok", "setvar ok")
+    tcl.'eval_str'("set foo(bar) fluffy")
     res = tcl.'eval_str'("return $foo(bar)")
-    'is'(res,"ok", "setvar ok")
+    'is'(res,"fluffy", "setvar2 ok")
 
     # list
     .local pmc tlist
@@ -67,7 +72,6 @@ t/tcl_lib.t - test parrot to external Tcl connection
     'is'(ires,4,"list length")
 
     # MORE TBD
-
 
 .end
 # Local Variables:

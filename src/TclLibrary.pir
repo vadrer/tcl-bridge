@@ -313,10 +313,6 @@ This is a (static) function that will convert Tcl object to pmc
     .param pmc interp
     .param pmc tclobj
 
-    # check what type this tcl obj is
-
-    .local int rc
-
     # check what tclobj actually is (null, integer, list, etc)
 
     # --->  these lines will be factored out into some init stage! ....
@@ -349,6 +345,7 @@ This is a (static) function that will convert Tcl object to pmc
     goto EOJ
 
 not_null:
+    .local int rc
     .local int obj_type
 
     obj_type = tclobj[3]
