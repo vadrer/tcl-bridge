@@ -22,6 +22,9 @@ No Configure step, no Makefile generated.
     $S0 = shift args
     load_bytecode 'distutils.pbc'
 
+    .const 'Sub' demo = 'demo'
+    register_step('demo', demo)
+
     $P0 = new 'Hash'
     $P0['name'] = 'tcl-bridge'
     $P0['abstract'] = 'Tcl/Tk binding for Parrot'
@@ -50,6 +53,16 @@ No Configure step, no Makefile generated.
     $P0['inst_lib'] = $P2
 
     .tailcall setup(args :flat, $P0 :flat :named)
+.end
+
+.sub 'demo' :anon
+    .param pmc kv :slurpy :named
+    run_step('build', kv :flat :named)
+
+    .local string cmd
+    cmd = get_parrot()
+    cmd .= " demo/tcltkdemo.pir"
+    system(cmd)
 .end
 
 # Local Variables:
