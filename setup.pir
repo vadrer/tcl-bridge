@@ -38,21 +38,16 @@ No Configure step, no Makefile generated.
 
     # build
     $P1 = new 'Hash'
-    $P1['src/TclLibrary.pbc'] = 'src/TclLibrary.pir'
+    $P1['TclLibrary.pbc'] = 'src/TclLibrary.pir'
     $P0['pbc_pir'] = $P1
 
     # test
     $S0 = get_parrot()
-    $S1 = " -L src"
-    $S0 .= $S1
     $P0['prove_exec'] = $S0
 
     # install
-    $P3 = split "\n", <<'LIBS'
-src/TclLibrary.pir
-LIBS
-    $S0 = pop $P3
-    $P0['inst_lang'] = $P3
+    $P2 = split ' ', 'TclLibrary.pbc'
+    $P0['inst_lib'] = $P2
 
     .tailcall setup(args :flat, $P0 :flat :named)
 .end
