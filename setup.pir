@@ -1,3 +1,4 @@
+#! /usr/local/bin/parrot
 # Copyright (C) 2009, Parrot Foundation.
 
 =head1 NAME
@@ -21,11 +22,8 @@ No Configure step, no Makefile generated.
     $S0 = shift args
     load_bytecode 'distutils.pbc'
 
-    .const 'Sub' build = 'build'
-    register_step_before('build', build)
-
-    .const 'Sub' clean = 'clean'
-    register_step_before('clean', clean)
+    .const 'Sub' demo = 'demo'
+    register_step('demo', demo)
 
     $P0 = new 'Hash'
     $P0['name'] = 'tcl-bridge'
@@ -37,40 +35,34 @@ No Configure step, no Makefile generated.
     $P0['license_type'] = 'Artistic License 2.0'
     $P0['license_uri'] = 'http://www.perlfoundation.org/artistic_license_2_0'
     $P0['copyright_holder'] = 'Parrot Foundation'
-    $P0['generated_by'] = ''
     $P0['checkout_uri'] = 'git://github.com/vadrer/tcl-bridge.git'
     $P0['browser_uri'] = 'http://github.com/vadrer/tcl-bridge'
     $P0['project_uri'] = 'http://github.com/vadrer/tcl-bridge'
 
     # build
     $P1 = new 'Hash'
-    $P1['src/TclLibrary.pbc'] = 'src/TclLibrary.pir'
+    $P1['TclLibrary.pbc'] = 'src/TclLibrary.pir'
     $P0['pbc_pir'] = $P1
 
     # test
     $S0 = get_parrot()
-    $S1 = " -L src"
-    $S0 .= $S1
     $P0['prove_exec'] = $S0
 
     # install
-    $P3 = split "\n", <<'LIBS'
-src/TclLibrary.pir
-LIBS
-    $S0 = pop $P3
-    $P0['inst_lang'] = $P3
+    $P2 = split ' ', 'TclLibrary.pbc'
+    $P0['inst_lib'] = $P2
 
     .tailcall setup(args :flat, $P0 :flat :named)
 .end
 
-.sub 'build' :anon
+.sub 'demo' :anon
     .param pmc kv :slurpy :named
-    say "sub build"
-.end
+    run_step('build', kv :flat :named)
 
-.sub 'clean' :anon
-    .param pmc kv :slurpy :named
-    unlink('src/TclLibrary.pbc')
+    .local string cmd
+    cmd = get_parrot()
+    cmd .= " demo/tcltkdemo.pir"
+    system(cmd)
 .end
 
 # Local Variables:
