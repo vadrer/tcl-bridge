@@ -55,7 +55,7 @@ t/tcl_lib.t - test parrot to external Tcl connection
     res = tcl.'eval_str'("return $foo")
     'is'(res,"ok", "setvar ok")
 
-    goto skip2
+    # setvar2, etc
     tcl.'eval_str'('set a(OK) ok; set a(five) 5')
     res = tcl.'getvar2'('a','OK')
     'is'(res,'ok','getvar2 ok')
@@ -66,8 +66,6 @@ t/tcl_lib.t - test parrot to external Tcl connection
     'is'(res,"ok", "setvar ok")
     res = tcl.'eval_str'("return $foo(bar)")
     'is'(res,"ok", "setvar ok")
-
-skip2:
 
     # list
     .local pmc tlist
