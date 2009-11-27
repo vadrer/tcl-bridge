@@ -13,7 +13,7 @@ t/tcl_lib.t - test parrot to external Tcl connection
 
 =cut
 
-.const int TESTS = 8
+.const int TESTS = 9
 
 .sub 'main' :main
     load_bytecode 'Test/More.pbc'
