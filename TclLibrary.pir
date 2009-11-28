@@ -51,13 +51,12 @@ This module implements Tcl/Tk interface for Parrot.
 .sub eval :method
     .param string str
 
-    .local string error, sres
+    .local string sres
     .local pmc res
     .local pmc f_evalex, f_getobjresult, f_getstringresult, f_resetresult
     f_resetresult = get_global '_tcl_resetresult'
     f_evalex = get_global '_tcl_evalex'
     f_getobjresult = get_global '_tcl_getobjresult'
-    f_getstringresult = get_global '_tcl_getstringresult'
 
     .local pmc interp
     interp = getattribute self,'interp'
@@ -68,9 +67,7 @@ This module implements Tcl/Tk interface for Parrot.
     rc = f_evalex(interp,str,-1,0) # interp, string, length or -1, flags
     # check if the result is TCL_OK(=0)
     if rc==TCL_OK goto eval_ok
-    sres = f_getstringresult(interp)
-    error = "error during Tcl_EvalEx: " . sres
-    die error
+    '_eval_error'(interp)
 
 eval_ok:
     # get execution result
@@ -79,6 +76,7 @@ eval_ok:
 	obj = f_getobjresult(interp)
 	res = _pmc_from_tclobj(interp,obj)
     },{
+        f_getstringresult = get_global '_tcl_getstringresult'
 	sres = f_getstringresult(interp)
         .return(sres)
     })
@@ -89,7 +87,7 @@ eval_ok:
 .sub eval_str :method
     .param string str
 
-    .local string res, error
+    .local string res
     .local pmc f_eval, f_getstringresult, f_resetresult
     f_resetresult = get_global '_tcl_resetresult'
     f_eval = get_global '_tcl_eval'
@@ -104,13 +102,103 @@ eval_ok:
     rc = f_eval(interp,str)
     # check if the result is TCL_OK(=0)
     if rc==TCL_OK goto eval_ok
-    res = f_getstringresult(interp)
-    error = "error during Tcl_Eval: " . res
-    die error
+    '_eval_error'(interp)
 
 eval_ok:
     res = f_getstringresult(interp)
     .return(res)
+.end
+
+=over 4
+
+=item call
+
+much like eval, but we already have it "parsed" - 1st parameter is command
+name, the rest are its parameters
+
+=cut
+
+#
+#.param string command <- for processing speed, we could use command
+# to search for a processing procedure, like in Tcl.xs:
+#   result = (*cmdinfo.proc)(cmdinfo.clientData, interp, objc, argv);
+# but we'll do simple 
+#   result = Tcl_EvalObjv(interp, objc, objv, 0);
+.sub 'call' :method
+    .param pmc args :slurpy
+
+    .local pmc interp
+    interp = getattribute self,'interp'
+
+    .local pmc objv
+    .local int objc
+
+    .local pmc f
+    f = get_global '_tcl_newstringobj'
+    objv = f("qwerty",0)
+    f = get_global '_tcl_evalobjv'
+    #objc = f(interp,0,objv,0)
+
+    say "WARNING: implement via Tcl_EvalObjv!"
+    .local string str
+    str = join " ", args
+    .tailcall self.'eval'(str)
+
+    objc = 0
+
+    if null args goto m0
+    .local pmc it
+    it = iter args
+  loop:
+    unless it goto m0
+    $P0 = shift it
+    #print $P0
+    .local string str0
+    str0 = $P0
+    str .= str0
+    str .= " "
+    inc objc
+    goto loop
+  m0:
+
+
+    say str
+    .tailcall self.'eval'(str)
+
+    print "objc is"
+    say objc
+    .return(objc)
+
+    .local pmc res
+    .local pmc f_evalobjv, f_getobjresult, f_resetresult
+    f_resetresult = get_global '_tcl_resetresult'
+    f_evalobjv = get_global '_tcl_evalobjv'
+    f_getobjresult = get_global '_tcl_getobjresult'
+
+    f_resetresult(interp)
+
+    .local int rc
+    rc = f_evalobjv(interp,objc,objv,0)
+    # check if the result is TCL_OK(=0)
+    if rc==TCL_OK goto eval_ok
+    '_eval_error'(interp)
+
+eval_ok:
+    # get execution result
+    .local pmc obj
+    obj = f_getobjresult(interp)
+    res = _pmc_from_tclobj(interp,obj)
+    .return(res)
+.end
+
+.sub _eval_error
+    .local pmc interp
+    .local string error, sres
+    .local pmc f_getstringresult
+    f_getstringresult = get_global '_tcl_getstringresult'
+    sres = f_getstringresult(interp)
+    error = "error during Tcl_EvalObjv: " . sres
+    die error
 .end
 
 # Constructor for the interpreter object.
@@ -276,8 +364,12 @@ standard_names_e:
     set_global '_tcl_resetresult', func
     func = dlfunc libtcl, "Tcl_EvalEx", "iptii"
     set_global '_tcl_evalex', func
+    func = dlfunc libtcl, "Tcl_EvalObjv", "ipipi"
+    set_global '_tcl_evalobjv', func
     func = dlfunc libtcl, "Tcl_Eval", "ipt"
     set_global '_tcl_eval', func
+    func = dlfunc libtcl, "Tcl_NewStringObj", "pti"
+    set_global '_tcl_newstringobj', func
     func = dlfunc libtcl, "Tcl_GetStringFromObj", "tp3"
     set_global '_tcl_getstringfromobj', func
     func = dlfunc libtcl, "Tcl_GetIntFromObj", "ipp3"
@@ -860,13 +952,22 @@ given widget path, return widget object
 
 .sub widget :method
     .param string wpath
-    .local pmc interp
-    interp = getattribute self,'interp'
+    # instantiate new widget with given path
+    .local pmc ppath
+    ppath = new 'String'
+    ppath = wpath
+    .local pmc argh
+    argh = new 'Hash'
+    set argh['path'], ppath
+    set argh['interp'], self
+    .local pmc widget
+    widget = new ['TclLibrary';'widget'], argh
+    .return(widget)
 .end
 
 
 
-# maybe this will be decided in separate file...
+# maybe this will be decided to be in separate file...
 # now its small and maintenable here
 
 .namespace ['TclLibrary';'widget']
@@ -878,7 +979,34 @@ given widget path, return widget object
     addattribute tclclass, 'path'
 .end
 
-.sub call :method
+.sub path :method
+    .local pmc path
+    path = getattribute self,'path'
+    .return(path)
+.end
+
+.sub init_pmc :method :vtable
+    .param pmc argh
+    .local pmc path, interp
+    path = argh['path']
+    interp = argh['interp']
+    setattribute self, 'path', path
+    setattribute self, 'interp', interp
+.end
+
+.sub init :method :vtable
+    die "currently widgets alone are not instantiated"
+.end
+
+.sub 'call' :method
+    .param string method
+    .param pmc args :slurpy
+    .local pmc interp
+    interp = getattribute self,'interp'
+    .local pmc path
+    path = getattribute self,'path'
+    .local pmc res
+    res = interp.'call'(path,method,args :flat)
 .end
 
 =head1 SEE ALSO

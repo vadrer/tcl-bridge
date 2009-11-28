@@ -41,6 +41,8 @@ t/tcl_lib.t - test parrot to external Tcl connection
     'is'(res, 1.0, 'return of double')
     res = tcl.'eval'("return [expr 1.0/2]")
     'is'(res, 0.5, 'return of double')
+    # interp->call(smth)
+    res = tcl.'call'('puts','qwerty')
 
     # variable methods: getvar, setvar2, unsetvar2, etc.
     tcl.'setvar'("foo", "ok")

@@ -7,19 +7,6 @@
     .local pmc tcl
     tcl = new 'TclLibrary'
     .local string res
-    res = tcl.'eval'("return [expr 1.0/3]")
-    print "double is "
-    say res
-    res = tcl.'eval'("return [list a b foo bar]")
-    print "list is "
-    say res
-    res = tcl.'eval'("return {3+3}")
-    print "string is "
-    say res
-    tcl.'eval'("puts this")
-    res = tcl.'eval'("expr {2+3}")
-    print "res="
-    say res
     res = tcl.'eval'(<<"EOS")
 package require Tk
 pack [button .b -text {useful button} -command {puts this}]
@@ -28,9 +15,12 @@ pack [text .t]
 pack [button .bquit -text {quit} -command {exit}]
 focus .b
 EOS
-    res = tcl.'eval'("expr {3+3}")
-    print "res="
-    say res
+    # given existing GUI, get some widget
+    .local pmc wbutton
+    wbutton = tcl.'widget'('.bquit')
+    # and now use widget method
+    wbutton.'call'('configure','-text','-Q-u-I-t-')
+    # mainloop
     tcl.'MainLoop'()
 .end
 
