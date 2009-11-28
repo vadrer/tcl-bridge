@@ -13,7 +13,7 @@ t/tcl_lib.t - test parrot to external Tcl connection
 
 =cut
 
-.const int TESTS = 14
+.const int TESTS = 15
 
 .sub 'main' :main
     .include 'test_more.pir'
@@ -38,7 +38,9 @@ t/tcl_lib.t - test parrot to external Tcl connection
     ires = tcl.'eval'("expr {3+3}")
     'is'(ires, 6, 'return of an integer')
     res = tcl.'eval'("return [expr 1.0]")
-    'is'(res, '1.0', 'return of double')
+    'is'(res, 1.0, 'return of double')
+    res = tcl.'eval'("return [expr 1.0/2]")
+    'is'(res, 0.5, 'return of double')
 
     # variable methods: getvar, setvar2, unsetvar2, etc.
     tcl.'setvar'("foo", "ok")

@@ -32,6 +32,12 @@ This module implements Tcl/Tk interface for Parrot.
 
 # DEBUG
 .const int debug_objresult = 0
+# use efficient way of tclobj->int/double
+.const int direct_type_conversion = 1
+
+.sub _not_here_ :main
+    die "this file could not be executed by its own"
+.end
 
 =head2 TclLibrary interpreter Methods
 
@@ -67,13 +73,10 @@ This module implements Tcl/Tk interface for Parrot.
     die error
 
 eval_ok:
-    # get the result (list result, etc - TBD)
+    # get execution result
     .IfElse(debug_objresult==0,{
 	.local pmc obj
 	obj = f_getobjresult(interp)
-        .local pmc tcl_obj_decl
-        tcl_obj_decl = get_global '_tcl_obj_decl' # retrieve tcl_obj structure
-        assign obj, tcl_obj_decl                  # ... and use it
 	res = _pmc_from_tclobj(interp,obj)
     },{
 	sres = f_getstringresult(interp)
@@ -191,7 +194,8 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
     #     } internalRep;
     # } Tcl_Obj;
 
-    .local pmc tcl_obj_struct, tcl_obj_struct_d, tcl_obj_decl
+    # C structure for int
+    .local pmc tcl_obj_struct, tcl_obj_decl
     tcl_obj_decl = new 'ResizablePMCArray'
     push tcl_obj_decl, .DATATYPE_INT
     push tcl_obj_decl, 0
@@ -207,19 +211,34 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
     push tcl_obj_decl, 0
     # following items are for union, let it be 2 longs, which eventually
     # could be transformed to the required type
-    push tcl_obj_decl, .DATATYPE_LONG
-    push tcl_obj_decl, 2
+    push tcl_obj_decl, .DATATYPE_INT
+    push tcl_obj_decl, 0
     push tcl_obj_decl, 0
 
-    # union TBD
     tcl_obj_struct = new 'UnManagedStruct', tcl_obj_decl
-    set_global '_tcl_obj_decl', tcl_obj_decl
+    set_global '_tcl_obj_decl_i', tcl_obj_decl
 
-    set tcl_obj_decl[12], .DATATYPE_DOUBLE
-    set tcl_obj_decl[13], 0
+    # C structure for double
+    .local pmc tcl_obj_struct_d, tcl_obj_decl_d
+    tcl_obj_decl_d = new 'ResizablePMCArray'
+    push tcl_obj_decl_d, .DATATYPE_INT
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, .DATATYPE_CSTR
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, .DATATYPE_INT
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, .DATATYPE_INT
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, .DATATYPE_DOUBLE
+    push tcl_obj_decl_d, 0
+    push tcl_obj_decl_d, 0
 
-    tcl_obj_struct_d = new 'UnManagedStruct', tcl_obj_decl
-    set_global '_tcl_obj_decl_d', tcl_obj_decl
+    tcl_obj_struct_d = new 'UnManagedStruct', tcl_obj_decl_d
+    set_global '_tcl_obj_decl_d', tcl_obj_decl_d
 .end
 
 # find proper shared library and use it.
@@ -232,7 +251,7 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
     libnames = new 'ResizableStringArray'
     unless has_libname goto standard_names
     push libnames, libname
-    say libname
+    #debug say libname
     goto standard_names_e
 standard_names:
     push libnames, 'tcl85'
@@ -272,8 +291,6 @@ standard_names_e:
     set_global '_tcl_getstringresult', func
     func = dlfunc libtcl, "Tcl_GetObjResult", "pp"
     set_global '_tcl_getobjresult', func
-    func = dlfunc libtcl, "Tcl_GetObjType", "it"
-    set_global '_tcl_getobjtype', func
     func = dlfunc libtcl, "Tcl_GetVar", "tpti"
     set_global '_tcl_getvar', func
     func = dlfunc libtcl, "Tcl_GetVar2", "tptti"
@@ -296,6 +313,26 @@ standard_names_e:
     func = dlfunc libtcl, "Tcl_ListObjGetElements", "ipp3p"
     set_global '_tcl_listobjgetelements', func
 
+    # precalculate tclBooleanTypePtr, tclByteArrayTypePtr, etc
+    .local pmc var_objtype
+    var_objtype = new 'Integer'
+    func = dlfunc libtcl, "Tcl_GetObjType", "it"
+    var_objtype = func("boolean")
+    set_global '_tclBooleanTypePtr',   var_objtype
+    var_objtype = func("bytearray")
+    set_global '_tclByteArrayTypePtr', var_objtype
+    var_objtype = func("double")
+    set_global '_tclDoubleTypePtr',    var_objtype
+    var_objtype = func("int")
+    set_global '_tclIntTypePtr',       var_objtype
+    var_objtype = func("list")
+    set_global '_tclListTypePtr',      var_objtype
+    var_objtype = func("string")
+    set_global '_tclStringTypePtr',    var_objtype
+    var_objtype = func("wideInt")
+    set_global '_tclWideIntTypePtr',   var_objtype
+    # .. done.
+
     '_init_tclobj'()
 
 .end
@@ -313,96 +350,87 @@ This is a (static) function that will convert Tcl object to pmc
     .param pmc interp
     .param pmc tclobj
 
-    # check what tclobj actually is (null, integer, list, etc)
-
-    # --->  these lines will be factored out into some init stage! ....
-    .local int tclBooleanTypePtr
-    .local int tclByteArrayTypePtr
-    .local int tclDoubleTypePtr
-    .local int tclIntTypePtr
-    .local int tclListTypePtr
-    .local int tclStringTypePtr
-    .local int tclWideIntTypePtr
-
-    .local pmc f_getobjtype
-    f_getobjtype = get_global '_tcl_getobjtype'
-
-    tclBooleanTypePtr   = f_getobjtype("boolean")
-    tclByteArrayTypePtr = f_getobjtype("bytearray")
-    tclDoubleTypePtr    = f_getobjtype("double")
-    tclIntTypePtr       = f_getobjtype("int")
-    tclListTypePtr      = f_getobjtype("list")
-    tclStringTypePtr    = f_getobjtype("string")
-    tclWideIntTypePtr   = f_getobjtype("wideInt")
-    # ..... <---- (see above)
-
-    #.local pmc tcl_obj_struct
-    #tcl_obj_struct = get_global '_tcl_obj_struct'
-
     if tclobj!=0 goto not_null
-    # null
-    say "NULL???"
-    goto EOJ
+    die "NULL???" # should not happen?
 
 not_null:
     .local int rc
     .local int obj_type
 
+    .local pmc tcl_obj_decl
+    tcl_obj_decl = get_global '_tcl_obj_decl_i'
+    assign tclobj, tcl_obj_decl
+
     obj_type = tclobj[3]
+
+    # check what tclobj actually is (null, integer, list, etc)
 
     #print "TCL obj_type is "
     #say obj_type
 
     if obj_type==0 goto EOJ # if obj_type is null, there's no internal rep
 
-    if obj_type!=tclBooleanTypePtr goto m00
+    .local pmc tcltypeptr
+
+    tcltypeptr = get_global '_tclBooleanTypePtr'
+    if tcltypeptr!=obj_type goto m00
     say "implement tclBooleanTypePtr!"
     goto EOJ
 
 m00:
-    if obj_type!=tclByteArrayTypePtr goto m01
+    tcltypeptr = get_global '_tclByteArrayTypePtr'
+    if tcltypeptr!=obj_type goto m01
     say "implement tclByteArrayTypePtr"
     goto EOJ
 
 m01:
-    if obj_type!=tclDoubleTypePtr goto m02
-    #sv = newSViv(objPtr->internalRep.doubleValue);
-    # the code below doesn't currently work, so go to fallback
-    # (fix it!)
-    say "implement tclDoubleTypePtr"
-    goto EOJ
+    tcltypeptr = get_global '_tclDoubleTypePtr'
+    if tcltypeptr!=obj_type goto m02
+    .IfElse(direct_type_conversion==0,{
+        # the code below doesn't currently work, so go to fallback
+        # (fix it!)
+        say "implement tclDoubleTypePtr"
+        goto EOJ
+        # ... because following segfaults :(
+        .local pmc f_getdoublefromobj
+        .local pmc dres
+        f_getdoublefromobj = get_global '_tcl_getdoublefromobj'
+        dres = new 'Float'
+        rc = f_getdoublefromobj(interp, tclobj, dres)
+    },{
+        # "direct" way:
+        #sv = newSViv(objPtr->internalRep.doubleValue);
+        .local num dbl
+        .local pmc tcl_obj_decl_d
+        tcl_obj_decl_d = get_global '_tcl_obj_decl_d'
+        assign tclobj, tcl_obj_decl_d
+        dbl = tclobj[4]
+        .return(dbl)
+    })
 
-    .local pmc f_getdoublefromobj
-    .local pmc dres
-    f_getdoublefromobj = get_global '_tcl_getdoublefromobj'
-    dres = new 'Float'
-    rc = f_getdoublefromobj(interp, tclobj, dres)
-    say dres
-    #.local pmc tcl_obj_decl_d
-    #tcl_obj_decl_d = get_global '_tcl_obj_decl_d' # retrieve tcl_obj_d structure
-    #assign tclobj, tcl_obj_decl_d                  # ... and use it
-    #say "hujd1"
-    #dres = tclobj[4]
-    print "dres="
-    say dres
-    .return(dres)
 
 m02:
-    if obj_type!=tclIntTypePtr goto m03
-    #sv = newSViv(objPtr->internalRep.longValue);
-    .local pmc f_getintfromobj
-    .local pmc iint
-    f_getintfromobj = get_global '_tcl_getintfromobj'
-    # "direct" way:
-    #.local int ires
-    #ires = tclobj[4]
-    # "better" way:
-    iint = new 'Integer'
-    rc = f_getintfromobj(interp, tclobj, iint)
-    .return(iint)
+    tcltypeptr = get_global '_tclIntTypePtr'
+    if tcltypeptr!=obj_type goto m03
+    .IfElse(direct_type_conversion==0,{
+        # "better" way:
+        .local pmc iint
+        iint = new 'Integer'
+        .local pmc f_getintfromobj
+        f_getintfromobj = get_global '_tcl_getintfromobj'
+        rc = f_getintfromobj(interp, tclobj, iint)
+        .return(iint)
+    },{
+        # "direct" way:
+        #sv = newSViv(objPtr->internalRep.longValue);
+        .local int ires
+        ires = tclobj[4]
+        .return(ires)
+    })
 
 m03:
-    if obj_type!=tclListTypePtr goto m04
+    tcltypeptr = get_global '_tclListTypePtr'
+    if tcltypeptr!=obj_type goto m04
 
     .local pmc argh
     argh = new 'Hash'
@@ -413,7 +441,8 @@ m03:
     .return(tlist)
 
 m04:
-    if obj_type!=tclStringTypePtr goto m05
+    tcltypeptr = get_global '_tclStringTypePtr'
+    if tcltypeptr!=obj_type goto m05
     say "implement tclStringTypePtr"
     goto EOJ
 
@@ -803,9 +832,7 @@ We try to do an efficient way to extract all elements at once.
 
     .local pmc f_listobjgetelements
     .local int rc
-    say "123"
     f_listobjgetelements = get_hll_global ['TclLibrary'], '_tcl_listobjgetelements'
-    say "456"
     rc = f_listobjgetelements(interp, tclobj, objc, objv_ptr)
     # we have objc TclObj in objv_ptr
     print "objc="
