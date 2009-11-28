@@ -636,58 +636,6 @@ The optional argument FLAGS behaves as in I<setvar>.
     .return(res)
 .end
 
-=item MainLoop
-
-MainLoop method, which corresponds to Tcl/Tk Tk_MainLoop call
-
-=cut
-
-.sub MainLoop :method
-    # essentially we want to do:
-    #   .local pmc f_mainloop
-    #   f_mainloop = dlfunc libtk, "Tk_MainLoop", "v"
-    #   f_mainloop()
-    # we do not have libtk variable, however.
-    # providing iface with libtk is easy, but we can avoid this
-    # Instead of calling Tk_MainLoop, which is located in libtk8.5.so
-    # we do same loop as in Tcl::Tk module. So loading tk shared library
-    # is done by tcl itself.
-    .local string res
-    .local pmc libtcl
-    .local pmc f_dooneevent, f_eval, f_getstringresult
-    libtcl = get_global '_libtcl'
-    f_eval = get_global '_tcl_eval'
-    f_getstringresult = get_global '_tcl_getstringresult'
-    f_dooneevent = dlfunc libtcl, "Tcl_DoOneEvent", "ii"
-    .local pmc interp
-    interp = getattribute self,'interp'
-
-    # Loop until mainwindow exists (its path is '.')
-    # below are 2 implementations how we get know that mainwindow no more avail
-    #  1. eval "winfo exists ."
-    #  2. use global variable, which will be destroyed upon exit
-    # Now we prefer 2nd method.
-    .IfElse(0==1,{
-        .DoWhile({
-            f_dooneevent(0)  # spin it
-            # check if '.' window still exists
-            f_eval(interp, 'winfo exists .')
-            res = f_getstringresult(interp,0)
-        },res=="1")
-    },{
-        .local pmc f_getvar
-        f_getvar = get_global '_tcl_getvar'
-        self.'setvar'("MainLoop_continuing","y",TCL_GLOBAL_ONLY)
-        f_eval(interp,"trace add command . delete {unset MainLoop_continuing}")
-        .DoWhile({
-            f_dooneevent(0)  # spin it
-            # check if flag variable "MainLoop_continuing" still exists
-            res = f_getvar(interp,"MainLoop_continuing",TCL_GLOBAL_ONLY)
-         },res=="y")
-    })
-
-.end
-
 =item _load_lib_with_fallbacks(string friendly_name, pmc fallback_list)
 
 This function is more generally useful than just for this module -- it
@@ -762,6 +710,8 @@ base TclObj class for support of Tcl/Tk library
 
 TclList support for Tcl/Tk library
 Based on Tcl list object, i.e. TclObj of type tclListType
+
+=back
 
 =cut
 
@@ -840,8 +790,96 @@ We try to do an efficient way to extract all elements at once.
     #TBD
 .end
 
+.namespace ['TclLibrary']
+
+=head2 Tk-enabled methods
+
+=over4
+
+=item MainLoop
+
+MainLoop method, which corresponds to Tcl/Tk Tk_MainLoop call
+
+=cut
+
+.sub MainLoop :method
+    # essentially we want to do:
+    #   .local pmc f_mainloop
+    #   f_mainloop = dlfunc libtk, "Tk_MainLoop", "v"
+    #   f_mainloop()
+    # we do not have libtk variable, however.
+    # providing iface with libtk is easy, but we can avoid this
+    # Instead of calling Tk_MainLoop, which is located in libtk8.5.so
+    # we do same loop as in Tcl::Tk module. So loading tk shared library
+    # is done by tcl itself.
+    .local string res
+    .local pmc libtcl
+    .local pmc f_dooneevent, f_eval, f_getstringresult
+    libtcl = get_global '_libtcl'
+    f_eval = get_global '_tcl_eval'
+    f_getstringresult = get_global '_tcl_getstringresult'
+    f_dooneevent = dlfunc libtcl, "Tcl_DoOneEvent", "ii"
+    .local pmc interp
+    interp = getattribute self,'interp'
+
+    # Loop until mainwindow exists (its path is '.')
+    # below are 2 implementations how we get know that mainwindow no more avail
+    #  1. eval "winfo exists ."
+    #  2. use global variable, which will be destroyed upon exit
+    # Now we prefer 2nd method.
+    .IfElse(0==1,{
+        .DoWhile({
+            f_dooneevent(0)  # spin it
+            # check if '.' window still exists
+            f_eval(interp, 'winfo exists .')
+            res = f_getstringresult(interp,0)
+        },res=="1")
+    },{
+        .local pmc f_getvar
+        f_getvar = get_global '_tcl_getvar'
+        self.'setvar'("MainLoop_continuing","y",TCL_GLOBAL_ONLY)
+        f_eval(interp,"trace add command . delete {unset MainLoop_continuing}")
+        .DoWhile({
+            f_dooneevent(0)  # spin it
+            # check if flag variable "MainLoop_continuing" still exists
+            res = f_getvar(interp,"MainLoop_continuing",TCL_GLOBAL_ONLY)
+         },res=="y")
+    })
+
+.end
 
 =back
+
+=cut
+
+=item widget
+
+given widget path, return widget object
+
+=cut
+
+.sub widget :method
+    .param string wpath
+    .local pmc interp
+    interp = getattribute self,'interp'
+.end
+
+
+
+# maybe this will be decided in separate file...
+# now its small and maintenable here
+
+.namespace ['TclLibrary';'widget']
+
+.sub _init :load :init
+    .local pmc tclclass
+    tclclass = newclass ['TclLibrary';'widget']
+    addattribute tclclass, 'interp'
+    addattribute tclclass, 'path'
+.end
+
+.sub call :method
+.end
 
 =head1 SEE ALSO
 

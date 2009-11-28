@@ -41,7 +41,7 @@ No Configure step, no Makefile generated.
 
     # build
     $P1 = new 'Hash'
-    $P1['TclLibrary.pbc'] = 'src/TclLibrary.pir'
+    $P1['TclLibrary.pbc'] = 'TclLibrary.pir'
     $P0['pbc_pir'] = $P1
 
     # test
