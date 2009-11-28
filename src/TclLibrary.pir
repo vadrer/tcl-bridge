@@ -172,26 +172,24 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
     # "declare" a helper for Tcl_Obj structure
     # here is the definition of the Tcl_Obj struct
     # typedef struct Tcl_Obj {
-    #     int refCount; // When 0 the object will be freed.
-    #     char *bytes;  // points to the first byte of the obj string representation...
-    #     int length;	// number of bytes at *bytes, not incl.the term.null.
-    #     Tcl_ObjType *typePtr; // obj type. if NULL - no int.rep.
-    #     union {		     /* The internal representation: */
-    #         long longValue;	     /*   - an long integer value */
-    #         double doubleValue;    /*   - a double-precision floating value */
-    #         VOID *otherValuePtr;   /*   - another, type-specific value */
-    #         Tcl_WideInt wideValue; /*   - a long long value */
-    #         struct {		/*   - internal rep as two pointers */
-    #             VOID *ptr1;
-    #             VOID *ptr2;
-    #         } twoPtrValue;
-    #         struct {		/*   - internal rep as a wide int, tightly
-    #                                  *     packed fields */
-    #             VOID *ptr;		/* Pointer to digits */
-    #             unsigned long value;/* Alloc, used, and signum packed into a
-    #                                  * single word */
-    #         } ptrAndLongRep;
-    #     } internalRep;
+    #    int refCount; // When 0 the object will be freed.
+    #    char *bytes;  // points to the first byte of the obj string representation...
+    #    int length;	// number of bytes at *bytes, not incl.the term.null.
+    #    Tcl_ObjType *typePtr; // obj type. if NULL - no int.rep.
+    #    union {		  /* The internal representation: */
+    #       long longValue;	  /*   - a long integer value */
+    #       double doubleValue;   /*   - a double-precision floating value */
+    #       VOID *otherValuePtr;  /*   - another, type-specific value */
+    #       Tcl_WideInt wideValue;/*   - a long long value */
+    #       struct {		/*   - internal rep as two pointers */
+    #          VOID *ptr1;
+    #          VOID *ptr2;
+    #       } twoPtrValue;
+    #       struct {   // -internal rep as a wide int, tightly packed fields
+    #          VOID *ptr; // Pointer to digits
+    #          unsigned long value;// Alloc....
+    #       } ptrAndLongRep;
+    #    } internalRep;
     # } Tcl_Obj;
 
     # C structure for int
@@ -209,8 +207,7 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
     push tcl_obj_decl, .DATATYPE_INT
     push tcl_obj_decl, 0
     push tcl_obj_decl, 0
-    # following items are for union, let it be 2 longs, which eventually
-    # could be transformed to the required type
+    # following items should be union, but we don't do unions...
     push tcl_obj_decl, .DATATYPE_INT
     push tcl_obj_decl, 0
     push tcl_obj_decl, 0
