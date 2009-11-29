@@ -32,7 +32,9 @@ This module implements Tcl/Tk interface for Parrot.
 
 # DEBUG
 .const int debug_objresult = 0
+
 # use efficient way of tclobj->int/double
+# (after measuring performance, should select one implementation)
 .const int direct_type_conversion = 1
 
 .sub _not_here_ :main
@@ -130,44 +132,58 @@ name, the rest are its parameters
     .local pmc interp
     interp = getattribute self,'interp'
 
-    .local pmc objv
-    .local int objc
+    .local pmc obj
+    .local int objc, i
 
-    .local pmc f
-    f = get_global '_tcl_newstringobj'
-    objv = f("qwerty",0)
-    f = get_global '_tcl_evalobjv'
-    #objc = f(interp,0,objv,0)
-
-    say "WARNING: implement via Tcl_EvalObjv!"
-    .local string str
-    str = join " ", args
-    .tailcall self.'eval'(str)
-
-    objc = 0
-
-    if null args goto m0
-    .local pmc it
-    it = iter args
-  loop:
-    unless it goto m0
-    $P0 = shift it
-    #print $P0
-    .local string str0
-    str0 = $P0
-    str .= str0
-    str .= " "
-    inc objc
-    goto loop
-  m0:
-
-
-    say str
-    .tailcall self.'eval'(str)
-
-    print "objc is"
+    objc = elements args
+    print "objc is "
     say objc
-    .return(objc)
+
+    # "TclObj*" struct
+    .local pmc t_decl, t_struct
+    t_decl = new 'FixedPMCArray'
+    t_decl = 3
+    t_decl[0] = .DATATYPE_PMC
+    t_decl[1] = 0
+    t_decl[2] = 0
+    t_struct = new 'UnManagedStruct', t_decl
+
+    # TclObj**, which is array of TclObj*
+    .local pmc tcl_obj_decl, tcl_obj_struct
+    tcl_obj_decl = new 'FixedPMCArray'
+    tcl_obj_decl = 3
+    tcl_obj_decl[0] = .DATATYPE_PMC
+    tcl_obj_decl[1] = objc
+    tcl_obj_decl[2] = 0
+    tcl_obj_struct = new 'ManagedStruct', tcl_obj_decl
+
+    .local pmc func
+    func = get_global '_tcl_newstringobj'
+    i = 0
+  loop:
+    if i>=objc goto m1
+    .local string arg
+    arg = args[i]
+    say arg
+    obj = func(arg,0)
+    #say "before-assign"
+    #assign obj, t_decl
+    #say "after-assign"
+    .local pmc tt
+    say "1"
+    #setref tt, obj
+    #say "2"
+    #say tt
+    #tcl_obj_struct[0;i] = obj
+    say "3"
+    inc i
+    goto loop
+  m1:
+
+    func = get_global '_tcl_evalobjv'
+    #objc = func(interp,objc,tcl_obj_struct,0)
+
+    .return("qwerty")
 
     .local pmc res
     .local pmc f_evalobjv, f_getobjresult, f_resetresult
@@ -178,7 +194,7 @@ name, the rest are its parameters
     f_resetresult(interp)
 
     .local int rc
-    rc = f_evalobjv(interp,objc,objv,0)
+    rc = f_evalobjv(interp,objc,obj,0)
     # check if the result is TCL_OK(=0)
     if rc==TCL_OK goto eval_ok
     '_eval_error'(interp)
@@ -260,9 +276,9 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
     # "declare" a helper for Tcl_Obj structure
     # here is the definition of the Tcl_Obj struct
     # typedef struct Tcl_Obj {
-    #    int refCount; // When 0 the object will be freed.
-    #    char *bytes;  // points to the first byte of the obj string representation...
-    #    int length;	// number of bytes at *bytes, not incl.the term.null.
+    #    int refCount;// When 0 the object will be freed.
+    #    char *bytes; // points to the 1st byte of obj string representation
+    #    int length;  // number of bytes at *bytes, not incl.the term.null.
     #    Tcl_ObjType *typePtr; // obj type. if NULL - no int.rep.
     #    union {		  /* The internal representation: */
     #       long longValue;	  /*   - a long integer value */
@@ -282,48 +298,50 @@ Performs the initialization of Tcl bridge, namely instantiates TclLibrary class
 
     # C structure for int
     .local pmc tcl_obj_struct, tcl_obj_decl
-    tcl_obj_decl = new 'ResizablePMCArray'
-    push tcl_obj_decl, .DATATYPE_INT
-    push tcl_obj_decl, 0
-    push tcl_obj_decl, 0
-    push tcl_obj_decl, .DATATYPE_CSTR
-    push tcl_obj_decl, 0
-    push tcl_obj_decl, 0
-    push tcl_obj_decl, .DATATYPE_INT
-    push tcl_obj_decl, 0
-    push tcl_obj_decl, 0
-    push tcl_obj_decl, .DATATYPE_INT
-    push tcl_obj_decl, 0
-    push tcl_obj_decl, 0
+    tcl_obj_decl = new 'FixedIntegerArray'
+    tcl_obj_decl = 15
+    tcl_obj_decl[0]  = .DATATYPE_INT
+    tcl_obj_decl[1]  = 0
+    tcl_obj_decl[2]  = 0
+    tcl_obj_decl[3]  = .DATATYPE_CSTR
+    tcl_obj_decl[4]  = 0
+    tcl_obj_decl[5]  = 0
+    tcl_obj_decl[6]  = .DATATYPE_INT
+    tcl_obj_decl[7]  = 0
+    tcl_obj_decl[8]  = 0
+    tcl_obj_decl[9]  = .DATATYPE_INT
+    tcl_obj_decl[10] = 0
+    tcl_obj_decl[11] = 0
     # following items should be union, but we don't do unions...
-    push tcl_obj_decl, .DATATYPE_INT
-    push tcl_obj_decl, 0
-    push tcl_obj_decl, 0
+    tcl_obj_decl[12] = .DATATYPE_INT
+    tcl_obj_decl[13] = 0
+    tcl_obj_decl[14] = 0
 
     tcl_obj_struct = new 'UnManagedStruct', tcl_obj_decl
     set_global '_tcl_obj_decl_i', tcl_obj_decl
 
     # C structure for double
-    .local pmc tcl_obj_struct_d, tcl_obj_decl_d
-    tcl_obj_decl_d = new 'ResizablePMCArray'
-    push tcl_obj_decl_d, .DATATYPE_INT
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, .DATATYPE_CSTR
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, .DATATYPE_INT
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, .DATATYPE_INT
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, .DATATYPE_DOUBLE
-    push tcl_obj_decl_d, 0
-    push tcl_obj_decl_d, 0
+    tcl_obj_decl = new 'FixedIntegerArray'
+    tcl_obj_decl = 15
+    tcl_obj_decl[0]  = .DATATYPE_INT
+    tcl_obj_decl[1]  = 0
+    tcl_obj_decl[2]  = 0
+    tcl_obj_decl[3]  = .DATATYPE_CSTR
+    tcl_obj_decl[4]  = 0
+    tcl_obj_decl[5]  = 0
+    tcl_obj_decl[6]  = .DATATYPE_INT
+    tcl_obj_decl[7]  = 0
+    tcl_obj_decl[8]  = 0
+    tcl_obj_decl[9]  = .DATATYPE_INT
+    tcl_obj_decl[10] = 0
+    tcl_obj_decl[11] = 0
+    tcl_obj_decl[12] = .DATATYPE_DOUBLE
+    tcl_obj_decl[13] = 0
+    tcl_obj_decl[14] = 0
 
-    tcl_obj_struct_d = new 'UnManagedStruct', tcl_obj_decl_d
-    set_global '_tcl_obj_decl_d', tcl_obj_decl_d
+    tcl_obj_struct = new 'UnManagedStruct', tcl_obj_decl
+    set_global '_tcl_obj_decl_d', tcl_obj_decl
+
 .end
 
 # find proper shared library and use it.
