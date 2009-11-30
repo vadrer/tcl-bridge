@@ -133,7 +133,7 @@ name, the rest are its parameters
     interp = getattribute self,'interp'
 
     .local pmc obj
-    .local int objc, i
+    .local int objc, objc3, i
 
     objc = elements args
     print "objc is "
@@ -142,10 +142,17 @@ name, the rest are its parameters
     # "TclObj*" struct
     .local pmc t_decl, t_struct
     t_decl = new 'FixedPMCArray'
-    t_decl = 3
-    t_decl[0] = .DATATYPE_PMC
-    t_decl[1] = 0
-    t_decl[2] = 0
+    objc3 = 3*objc
+    t_decl = objc3
+    i=0
+    .While(i<objc3,{
+        t_decl[i] = .DATATYPE_PMC
+        inc i
+        t_decl[i] = 0
+        inc i
+        t_decl[i] = 0
+        inc i
+    })
     t_struct = new 'UnManagedStruct', t_decl
 
     # TclObj**, which is array of TclObj*
@@ -166,16 +173,8 @@ name, the rest are its parameters
     arg = args[i]
     say arg
     obj = func(arg,0)
-    #say "before-assign"
-    #assign obj, t_decl
-    #say "after-assign"
-    .local pmc tt
-    say "1"
-    #setref tt, obj
-    #say "2"
-    #say tt
-    #tcl_obj_struct[0;i] = obj
-    say "3"
+    say "the statement in trouble is here:"
+    #tcl_obj_struct[i] = obj
     inc i
     goto loop
   m1:
