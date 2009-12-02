@@ -10,16 +10,24 @@
     res = tcl.'eval'(<<"EOS")
 package require Tk
 pack [button .b -text {useful button} -command {puts this}]
+pack [frame .f]
 pack [text .t]
-.t insert end {foo, bar, fluffy}
+.t insert end {foo, bar, fluffy\n}
 pack [button .bquit -text {quit} -command {exit}]
-focus .b
+set w_e text
 EOS
     # given existing GUI, get some widget
-    .local pmc wbutton
-    wbutton = tcl.'widget'('.bquit')
+    .local pmc wbutton, wtext
+    wbutton = tcl.'widget'('.b')
+    wtext = tcl.'widget'('.t')
     # and now use widget method
-    wbutton.'call'('configure','-text','-Q-u-I-t-')
+    wtext.'call'('insert','end','some text...')
+    # create some more widgets, using another method
+    tcl.'call'('entry','.f.e','-textvariable','w_e')
+    tcl.'call'('pack','.f.e')
+    tcl.'call'('focus','.f.e')
+    # and change button behaviour
+    wbutton.'call'('configure','-command','.t insert end $w_e')
     # mainloop
     tcl.'MainLoop'()
 .end

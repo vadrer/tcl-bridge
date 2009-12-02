@@ -132,12 +132,28 @@ name, the rest are its parameters
     .local pmc interp
     interp = getattribute self,'interp'
 
+    .local pmc f_newlistobj, f_listobjappendelement, f_newstringobj
+    .local pmc f_getobjresult, f_resetresult, f_evalobjv, f_evalobjex
+    f_resetresult          = get_global '_tcl_resetresult'
+    f_getobjresult         = get_global '_tcl_getobjresult'
+    f_newstringobj         = get_global '_tcl_newstringobj'
+    f_newlistobj           = get_global '_tcl_newlistobj'
+    f_listobjappendelement = get_global '_tcl_listobjappendelement'
+    f_evalobjv             = get_global '_tcl_evalobjv'
+    f_evalobjex            = get_global '_tcl_evalobjex'
+
     .local pmc obj
-    .local int objc, objc3, i
+    .local pmc listobj
+    .local int objc, objc3, rc, i
+    .local string arg
 
     objc = elements args
-    print "objc is "
-    say objc
+
+    # following lines should implement the logic, but instead we'll go another,
+    # easier but worse way
+
+    goto do_differently
+    # the statement above should be removed
 
     # "TclObj*" struct
     .local pmc t_decl, t_struct
@@ -164,36 +180,52 @@ name, the rest are its parameters
     tcl_obj_decl[2] = 0
     tcl_obj_struct = new 'ManagedStruct', tcl_obj_decl
 
-    .local pmc func
-    func = get_global '_tcl_newstringobj'
     i = 0
   loop:
     if i>=objc goto m1
-    .local string arg
     arg = args[i]
     say arg
-    obj = func(arg,0)
+    obj = f_newstringobj(arg,0)
     say "the statement in trouble is here:"
     #tcl_obj_struct[i] = obj
     inc i
     goto loop
   m1:
 
-    func = get_global '_tcl_evalobjv'
-    #objc = func(interp,objc,tcl_obj_struct,0)
+    objc = func(interp,objc,tcl_obj_struct,0)
+
+    # smth like "rc = f_evalobjv(interp,objc,tcl_obj_struct?,0)"
 
     .return("qwerty")
 
-    .local pmc res
-    .local pmc f_evalobjv, f_getobjresult, f_resetresult
-    f_resetresult = get_global '_tcl_resetresult'
-    f_evalobjv = get_global '_tcl_evalobjv'
-    f_getobjresult = get_global '_tcl_getobjresult'
+  do_differently:
+    # this way is not efficient and is here unless we'll implement the way above
+
+    # create list obj, append strings to it, and then do the interpreter call
+    listobj = f_newlistobj(0,0)
+
+    i=0
+    .While(i<objc,{
+        arg = args[i]
+        #.local int len
+        #len = length arg
+        # in the following call we specify negative length => up to zero,
+        # because real string length "len" is not usable, as it is character
+        # length as opposed to bytes length, because Tcl function 
+        # Tcl_NewStringObj uses UTF-8-encoded bytes and number of bytes
+        # Maybe we should use Tcl_SetUnicodeObj instead
+        # but it needs some additional converting
+        obj = f_newstringobj(arg,-1)
+        rc = f_listobjappendelement(interp,listobj,obj)
+        # TODO check rc code
+        inc i
+    })
+
+    # here we're ready to call tcl
 
     f_resetresult(interp)
+    rc = f_evalobjex(interp,listobj,0)
 
-    .local int rc
-    rc = f_evalobjv(interp,objc,obj,0)
     # check if the result is TCL_OK(=0)
     if rc==TCL_OK goto eval_ok
     '_eval_error'(interp)
@@ -202,12 +234,13 @@ eval_ok:
     # get execution result
     .local pmc obj
     obj = f_getobjresult(interp)
+    .local pmc res
     res = _pmc_from_tclobj(interp,obj)
     .return(res)
 .end
 
 .sub _eval_error
-    .local pmc interp
+    .param pmc interp
     .local string error, sres
     .local pmc f_getstringresult
     f_getstringresult = get_global '_tcl_getstringresult'
@@ -381,12 +414,18 @@ standard_names_e:
     set_global '_tcl_resetresult', func
     func = dlfunc libtcl, "Tcl_EvalEx", "iptii"
     set_global '_tcl_evalex', func
+    func = dlfunc libtcl, "Tcl_EvalObjEx", "ippi"
+    set_global '_tcl_evalobjex', func
     func = dlfunc libtcl, "Tcl_EvalObjv", "ipipi"
     set_global '_tcl_evalobjv', func
     func = dlfunc libtcl, "Tcl_Eval", "ipt"
     set_global '_tcl_eval', func
     func = dlfunc libtcl, "Tcl_NewStringObj", "pti"
     set_global '_tcl_newstringobj', func
+    func = dlfunc libtcl, "Tcl_NewListObj", "pip"
+    set_global '_tcl_newlistobj', func
+    func = dlfunc libtcl, "Tcl_ListObjAppendElement", "ippp"
+    set_global '_tcl_listobjappendelement', func
     func = dlfunc libtcl, "Tcl_GetStringFromObj", "tp3"
     set_global '_tcl_getstringfromobj', func
     func = dlfunc libtcl, "Tcl_GetIntFromObj", "ipp3"

@@ -13,7 +13,7 @@ t/tcl_lib.t - test parrot to external Tcl connection
 
 =cut
 
-.const int TESTS = 15
+.const int TESTS = 16
 
 .sub 'main' :main
     .include 'test_more.pir'
@@ -42,7 +42,9 @@ t/tcl_lib.t - test parrot to external Tcl connection
     res = tcl.'eval'("return [expr 1.0/2]")
     'is'(res, 0.5, 'return of double')
     # interp->call(smth)
-    res = tcl.'call'('puts','qwerty')
+    tcl.'call'('set','var with tricky name',"obf{usc[ated]val-{({[ue")
+    res = tcl.'call'('set','var with tricky name')
+    'is'(res,'obf{usc[ated]val-{({[ue',"special chars is not a problem")
 
     # variable methods: getvar, setvar2, unsetvar2, etc.
     tcl.'setvar'("foo", "ok")
